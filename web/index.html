@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebAssembly vs. JavaScript</title>
+  <style>
+    :root {
+      --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --line: #dcdcd6;
+      --card: #ffffff; --accent: #e8730c; --good: #1f7a3a; --bad: #b3261e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161615; --fg: #ececea; --muted: #9a9a94; --line: #34342f;
+        --card: #1f1f1d; --accent: #f08a2c; --good: #5cc27a; --bad: #f2827a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px; }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; }
+    p.lead { color: var(--muted); margin: 0 0 24px; }
+    .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    button {
+      background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+      padding: 10px 20px; font: inherit; font-weight: 600; cursor: pointer;
+    }
+    button:disabled { opacity: .5; cursor: progress; }
+    #status { color: var(--muted); }
+    .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; min-width: 640px; }
+    th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td small { display: block; color: var(--muted); font-size: .8rem; }
+    .num { font-variant-numeric: tabular-nums; }
+    .faster { color: var(--good); font-weight: 600; }
+    .slower { color: var(--bad); font-weight: 600; }
+    .note { color: var(--muted); font-size: .85rem; margin-top: 16px; }
+    pre {
+      background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+      padding: 12px; overflow-x: auto; font-size: .8rem;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>WebAssembly vs. JavaScript</h1>
+  <p class="lead">C-Code, mit Emscripten zu WebAssembly kompiliert, im Vergleich zu denselben Algorithmen in JavaScript.</p>
+
+  <div class="controls">
+    <button id="run">Benchmark starten</button>
+    <span id="status">Lade WebAssembly-Module …</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Test</th>
+          <th>JavaScript</th>
+          <th>Wasm -O3</th>
+          <th>Speedup -O3</th>
+          <th>Wasm -O0</th>
+          <th>Speedup -O0</th>
+          <th>Ergebnis gleich</th>
+        </tr>
+      </thead>
+      <tbody id="results"></tbody>
+    </table>
+  </div>
+
+  <p class="note">
+    Median aus mehreren Läufen nach einem Aufwärmlauf. Speedup = Zeit JavaScript / Zeit WebAssembly
+    (&gt; 1 bedeutet: WebAssembly ist schneller).
+  </p>
+
+  <h2 style="font-size:1rem;margin-top:28px">Markdown für das README</h2>
+  <pre id="markdown">–</pre>
+</main>
+
+<script type="module">
+  // Zugriff ueber den JavaScript glue code von Emscripten (Empfehlung aus der Vorlesung).
+  import createModuleO3 from '../build/bench.mjs';
+  import createModuleO0 from '../build/bench_O0.mjs';
+  import { runAll, toMarkdown, RUNS } from '../js/runner.js';
+
+  const button = document.getElementById('run');
+  const status = document.getElementById('status');
+  const tbody = document.getElementById('results');
+  const markdown = document.getElementById('markdown');
+
+  const fmt = (ms) => `${ms.toFixed(1)} ms`;
+  const speed = (s) => `<span class="${s >= 1 ? 'faster' : 'slower'}">${s.toFixed(2)}×</span>`;
+
+  let moduleO3, moduleO0;
+  try {
+    [moduleO3, moduleO0] = await Promise.all([createModuleO3(), createModuleO0()]);
+    status.textContent = `Bereit – Median aus ${RUNS} Läufen pro Test.`;
+  } catch (err) {
+    status.textContent = 'Fehler beim Laden der Module. Wurde build.ps1 / build.sh ausgeführt und die Seite über einen Webserver geöffnet?';
+    button.disabled = true;
+    console.error(err);
+  }
+
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    tbody.innerHTML = '';
+    markdown.textContent = '–';
+    status.textContent = 'Läuft … (die Seite reagiert währenddessen evtl. träge)';
+
+    const rows = await runAll({ 'Wasm -O3': moduleO3, 'Wasm -O0': moduleO0 }, (row) => {
+      const o3 = row.wasm['Wasm -O3'];
+      const o0 = row.wasm['Wasm -O0'];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${row.name}<small>${row.params}</small></td>
+        <td class="num">${fmt(row.jsMs)}</td>
+        <td class="num">${fmt(o3.ms)}</td>
+        <td class="num">${speed(o3.speedup)}</td>
+        <td class="num">${fmt(o0.ms)}</td>
+        <td class="num">${speed(o0.speedup)}</td>
+        <td>${o3.correct && o0.correct ? '✔' : '<span class="slower">✘</span>'}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    markdown.textContent = toMarkdown(rows);
+    status.textContent = `Fertig – ${navigator.userAgent.match(/(Firefox|Edg|Chrome|Safari)\/[\d.]+/)?.[0] ?? 'Browser'}`;
+    button.disabled = false;
+  });
+</script>
+</body>
+</html>

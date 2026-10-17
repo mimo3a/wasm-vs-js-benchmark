@@ -1,0 +1,4 @@
+node_modules/
+.DS_Store
+Thumbs.db
+# build/ wird bewusst eingecheckt, damit das Projekt ohne Docker direkt lauffaehig ist.

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wasm Rechner</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    input { width: 100px; padding: 6px; font: inherit; }
+    button { padding: 6px 14px; font: inherit; cursor: pointer; }
+    #result { font-size: 1.4rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Rechner mit C → WebAssembly</h1>
+
+  <p>
+    <input id="a" type="number" value="1">
+    <input id="b" type="number" value="2">
+  </p>
+  <p>
+    <button id="add">Add</button>
+    <button id="subtract">Subtract</button>
+  </p>
+  <p>Ergebnis: <span id="result">–</span></p>
+
+  <script type="module">
+    // Variante 1: direkt ueber die .wasm-Datei (ohne glue code), gebaut mit "-o math_standalone.wasm"
+    // const { instance } = await WebAssembly.instantiateStreaming(fetch('../build/math_standalone.wasm'), {});
+    // const add = instance.exports.add;          // ohne Unterstrich
+    // const subtract = instance.exports.subtract;
+
+    // Variante 2: ueber den JavaScript glue code (empfohlen)
+    import createModule from '../build/math.mjs';
+    const m = await createModule();
+    const add = m._add;                            // mit Unterstrich
+    const subtract = m._subtract;
+
+    const a = document.getElementById('a');
+    const b = document.getElementById('b');
+    const result = document.getElementById('result');
+
+    document.getElementById('add').addEventListener('click', () => {
+      result.textContent = add(Number(a.value), Number(b.value));
+    });
+    document.getElementById('subtract').addEventListener('click', () => {
+      result.textContent = subtract(Number(a.value), Number(b.value));
+    });
+  </script>
+</body>
+</html>
