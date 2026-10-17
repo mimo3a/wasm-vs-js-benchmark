@@ -6,6 +6,8 @@ Rechenintensive Funktionen werden in **C** geschrieben, mit **Emscripten** zu **
 und im **Browser** sowie in **Node.js** ausgeführt. Dieselben Algorithmen sind 1:1 in **JavaScript**
 implementiert; die Ausführungszeiten werden verglichen.
 
+  **Live-Demo:** https://mimo3a.github.io/wasm-vs-js-benchmark/web/
+
 ## Inhalt
 
 ```
